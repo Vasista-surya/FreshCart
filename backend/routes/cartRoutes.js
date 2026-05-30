@@ -1,200 +1,137 @@
-const express = require('express');
-const Cart = require('../models/Cart');
-const Product = require('../models/Product');
-const { protect } = require('../middleware/auth');
+const router = require('express').Router()
+const { auth } = require('../middleware/auth')
 
-const router = express.Router();
+const useMock = () => process.env.USE_MOCK_DB === 'true'
+const getMockDb = () => require('../config/mockDb')
 
-// All cart routes are protected
-router.use(protect);
-
-/**
- * Helper: Populate and return the user's cart
- */
-const getPopulatedCart = async (userId) => {
-  let cart = await Cart.findOne({ user: userId }).populate(
-    'items.product',
-    'name price image stock unit weight isAvailable'
-  );
-  if (!cart) {
-    cart = await Cart.create({ user: userId, items: [] });
-    cart = await Cart.findOne({ user: userId }).populate(
-      'items.product',
-      'name price image stock unit weight isAvailable'
-    );
-  }
-  return cart;
-};
-
-// ─── GET /api/cart ──────────────────────────────────────────────────────────
-router.get('/', async (req, res, next) => {
+// GET /api/cart
+router.get('/', auth, async (req, res) => {
   try {
-    const cart = await getPopulatedCart(req.user._id);
-
-    res.json({
-      success: true,
-      cart,
-    });
-  } catch (error) {
-    next(error);
+    if (useMock()) {
+      const db = getMockDb().getDb()
+      const cart = db.carts.find(c => c.user === req.userId)
+      if (!cart) return res.json({ success: true, items: [] })
+      const items = cart.items.map(i => ({
+        product: db.products.find(p => p._id === i.productId) || { _id: i.productId, name: 'Unknown', price: 0, image: '' },
+        quantity: i.quantity,
+      }))
+      return res.json({ success: true, items })
+    }
+    const Cart = require('../models/Cart')
+    const cart = await Cart.findOne({ user: req.userId }).populate('items.product')
+    res.json({ success: true, items: cart?.items || [] })
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message })
   }
-});
+})
 
-// ─── POST /api/cart ─────────────────────────────────────────────────────────
-// Add item to cart
-router.post('/', async (req, res, next) => {
+// POST /api/cart
+router.post('/', auth, async (req, res) => {
   try {
-    const { productId, quantity = 1 } = req.body;
+    const { productId, quantity = 1 } = req.body
 
-    if (!productId) {
-      return res.status(400).json({
-        success: false,
-        message: 'Please provide productId',
-      });
+    if (useMock()) {
+      const db = getMockDb().getDb()
+      let cart = db.carts.find(c => c.user === req.userId)
+      if (!cart) { cart = { user: req.userId, items: [] }; db.carts.push(cart) }
+      const existing = cart.items.find(i => i.productId === productId)
+      if (existing) existing.quantity += quantity
+      else cart.items.push({ productId, quantity })
+      const items = cart.items.map(i => ({
+        product: db.products.find(p => p._id === i.productId) || {},
+        quantity: i.quantity,
+      }))
+      return res.json({ success: true, items })
     }
 
-    // Verify product exists
-    const product = await Product.findById(productId);
-    if (!product) {
-      return res.status(404).json({
-        success: false,
-        message: 'Product not found',
-      });
-    }
+    const Cart = require('../models/Cart')
+    let cart = await Cart.findOne({ user: req.userId })
+    if (!cart) cart = new Cart({ user: req.userId, items: [] })
+    const idx = cart.items.findIndex(i => i.product.toString() === productId)
+    if (idx > -1) cart.items[idx].quantity += quantity
+    else cart.items.push({ product: productId, quantity })
+    await cart.save()
+    await cart.populate('items.product')
+    res.json({ success: true, items: cart.items })
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message })
+  }
+})
 
-    let cart = await Cart.findOne({ user: req.user._id });
+// PUT /api/cart/:productId
+router.put('/:productId', auth, async (req, res) => {
+  try {
+    const { quantity } = req.body
 
-    if (!cart) {
-      cart = await Cart.create({
-        user: req.user._id,
-        items: [{ product: productId, quantity }],
-      });
-    } else {
-      // Check if product already in cart
-      const existingItem = cart.items.find(
-        (item) => item.product.toString() === productId
-      );
-
-      if (existingItem) {
-        existingItem.quantity = quantity;
-      } else {
-        cart.items.push({ product: productId, quantity });
+    if (useMock()) {
+      const db = getMockDb().getDb()
+      const cart = db.carts.find(c => c.user === req.userId)
+      if (cart) {
+        const item = cart.items.find(i => i.productId === req.params.productId)
+        if (item) item.quantity = quantity
       }
-
-      await cart.save();
+      const items = (cart?.items || []).map(i => ({
+        product: db.products.find(p => p._id === i.productId) || {},
+        quantity: i.quantity,
+      }))
+      return res.json({ success: true, items })
     }
 
-    const populatedCart = await getPopulatedCart(req.user._id);
-
-    res.json({
-      success: true,
-      cart: populatedCart,
-    });
-  } catch (error) {
-    next(error);
-  }
-});
-
-// ─── PUT /api/cart/:productId ───────────────────────────────────────────────
-// Update quantity for a product in cart
-router.put('/:productId', async (req, res, next) => {
-  try {
-    const { quantity } = req.body;
-    const { productId } = req.params;
-
-    let cart = await Cart.findOne({ user: req.user._id });
-
-    if (!cart) {
-      return res.status(404).json({
-        success: false,
-        message: 'Cart not found',
-      });
-    }
-
-    const itemIndex = cart.items.findIndex(
-      (item) => item.product.toString() === productId
-    );
-
-    if (itemIndex === -1) {
-      return res.status(404).json({
-        success: false,
-        message: 'Product not found in cart',
-      });
-    }
-
-    if (quantity <= 0) {
-      // Remove item if quantity is 0 or less
-      cart.items.splice(itemIndex, 1);
-    } else {
-      cart.items[itemIndex].quantity = quantity;
-    }
-
-    await cart.save();
-
-    const populatedCart = await getPopulatedCart(req.user._id);
-
-    res.json({
-      success: true,
-      cart: populatedCart,
-    });
-  } catch (error) {
-    next(error);
-  }
-});
-
-// ─── DELETE /api/cart/:productId ────────────────────────────────────────────
-// Remove a specific product from cart
-router.delete('/:productId', async (req, res, next) => {
-  try {
-    const { productId } = req.params;
-
-    const cart = await Cart.findOne({ user: req.user._id });
-
-    if (!cart) {
-      return res.status(404).json({
-        success: false,
-        message: 'Cart not found',
-      });
-    }
-
-    cart.items = cart.items.filter(
-      (item) => item.product.toString() !== productId
-    );
-
-    await cart.save();
-
-    const populatedCart = await getPopulatedCart(req.user._id);
-
-    res.json({
-      success: true,
-      cart: populatedCart,
-    });
-  } catch (error) {
-    next(error);
-  }
-});
-
-// ─── DELETE /api/cart ────────────────────────────────────────────────────────
-// Clear entire cart — must be defined with a different path trick
-// since DELETE / conflicts with DELETE /:productId
-// We use a special "clear" route
-router.delete('/', async (req, res, next) => {
-  try {
-    const cart = await Cart.findOne({ user: req.user._id });
-
+    const Cart = require('../models/Cart')
+    const cart = await Cart.findOne({ user: req.userId })
     if (cart) {
-      cart.items = [];
-      await cart.save();
+      const item = cart.items.find(i => i.product.toString() === req.params.productId)
+      if (item) item.quantity = quantity
+      await cart.save()
+      await cart.populate('items.product')
     }
-
-    res.json({
-      success: true,
-      message: 'Cart cleared',
-      cart: cart || { user: req.user._id, items: [] },
-    });
-  } catch (error) {
-    next(error);
+    res.json({ success: true, items: cart?.items || [] })
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message })
   }
-});
+})
 
-module.exports = router;
+// DELETE /api/cart/:productId
+router.delete('/:productId', auth, async (req, res) => {
+  try {
+    if (useMock()) {
+      const db = getMockDb().getDb()
+      const cart = db.carts.find(c => c.user === req.userId)
+      if (cart) cart.items = cart.items.filter(i => i.productId !== req.params.productId)
+      const items = (cart?.items || []).map(i => ({
+        product: db.products.find(p => p._id === i.productId) || {},
+        quantity: i.quantity,
+      }))
+      return res.json({ success: true, items })
+    }
+    const Cart = require('../models/Cart')
+    const cart = await Cart.findOne({ user: req.userId })
+    if (cart) {
+      cart.items = cart.items.filter(i => i.product.toString() !== req.params.productId)
+      await cart.save()
+      await cart.populate('items.product')
+    }
+    res.json({ success: true, items: cart?.items || [] })
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message })
+  }
+})
+
+// DELETE /api/cart
+router.delete('/', auth, async (req, res) => {
+  try {
+    if (useMock()) {
+      const db = getMockDb().getDb()
+      const idx = db.carts.findIndex(c => c.user === req.userId)
+      if (idx > -1) db.carts.splice(idx, 1)
+      return res.json({ success: true, items: [] })
+    }
+    const Cart = require('../models/Cart')
+    await Cart.findOneAndDelete({ user: req.userId })
+    res.json({ success: true, items: [] })
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message })
+  }
+})
+
+module.exports = router

@@ -1,182 +1,108 @@
-const express = require('express');
-const Product = require('../models/Product');
-const Category = require('../models/Category');
+const router = require('express').Router()
 
-const router = express.Router();
+const useMock = () => process.env.USE_MOCK_DB === 'true'
+const getMockDb = () => require('../config/mockDb')
 
-// ─── GET /api/products ──────────────────────────────────────────────────────
-// List products with filtering, sorting, search, pagination
-router.get('/', async (req, res, next) => {
+// GET /api/products
+router.get('/', async (req, res) => {
   try {
-    const {
-      search,
-      category,
-      minPrice,
-      maxPrice,
-      sort,
-      page = 1,
-      limit = 12,
-    } = req.query;
+    const { category, search, sort } = req.query
 
-    const filter = { isAvailable: true };
-
-    // Search by name (case-insensitive regex)
-    if (search) {
-      filter.name = { $regex: search, $options: 'i' };
-    }
-
-    // Filter by category (smart slug-to-name mapping)
-    if (category) {
-      const normalizedCategory = String(category).toLowerCase().trim();
-      
-      if (normalizedCategory === 'grocery' || normalizedCategory === 'groceries' || normalizedCategory === 'grocery-staples' || normalizedCategory === 'grocery-and-staples') {
-        filter.category = {
-          $in: [
-            'Rice & Grains',
-            'Atta & Flour',
-            'Pulses & Dal',
-            'Cooking Oils',
-            'Spices & Masala',
-            'Salt & Sugar',
-            'Tea & Coffee',
-            'Biscuits & Cookies',
-            'Bread & Bakery'
-          ]
-        };
-      } else if (normalizedCategory === 'fruits' || normalizedCategory === 'vegetables' || normalizedCategory === 'fruits-vegetables' || normalizedCategory === 'fruits-&-vegetables') {
-        filter.category = 'Fruits & Vegetables';
-      } else if (normalizedCategory === 'dairy' || normalizedCategory === 'dairy-products' || normalizedCategory === 'dairy-eggs') {
-        filter.category = 'Dairy Products';
-      } else if (normalizedCategory === 'snacks' || normalizedCategory === 'snacks-namkeen') {
-        filter.category = 'Snacks & Namkeen';
-      } else if (normalizedCategory === 'beverages') {
-        filter.category = 'Beverages';
-      } else if (normalizedCategory === 'personal-care') {
-        filter.category = 'Personal Care';
-      } else if (normalizedCategory === 'household' || normalizedCategory === 'cleaning-household' || normalizedCategory === 'cleaning-&-household') {
-        filter.category = 'Cleaning & Household';
-      } else if (normalizedCategory === 'snacks-beverages') {
-        filter.category = { $in: ['Snacks & Namkeen', 'Beverages'] };
-      } else {
-        // Dynamic category lookup fallback
-        const categoryDoc = await Category.findOne({
-          $or: [
-            { slug: normalizedCategory },
-            { name: { $regex: '^' + normalizedCategory + '$', $options: 'i' } }
-          ]
-        });
-        
-        if (categoryDoc) {
-          filter.category = categoryDoc.name;
-        } else {
-          // Fallback exact/regex match
-          filter.category = { $regex: '^' + category + '$', $options: 'i' };
-        }
+    if (useMock()) {
+      let products = [...getMockDb().getDb().products]
+      if (category) products = products.filter(p => p.category === category)
+      if (search) {
+        const q = search.toLowerCase()
+        products = products.filter(p => p.name.toLowerCase().includes(q) || p.description.toLowerCase().includes(q) || p.brand?.toLowerCase().includes(q))
       }
+      if (sort) {
+        const desc = sort.startsWith('-')
+        const field = desc ? sort.slice(1) : sort
+        products.sort((a, b) => {
+          if (typeof a[field] === 'string') return desc ? b[field].localeCompare(a[field]) : a[field].localeCompare(b[field])
+          return desc ? b[field] - a[field] : a[field] - b[field]
+        })
+      }
+      return res.json({ success: true, products, total: products.length })
     }
 
-    // Price range
-    if (minPrice || maxPrice) {
-      filter.price = {};
-      if (minPrice) filter.price.$gte = Number(minPrice);
-      if (maxPrice) filter.price.$lte = Number(maxPrice);
+    const Product = require('../models/Product')
+    let query = {}
+    if (category) query.category = category
+    if (search) query.$or = [
+      { name: { $regex: search, $options: 'i' } },
+      { description: { $regex: search, $options: 'i' } },
+      { brand: { $regex: search, $options: 'i' } },
+    ]
+    let sortObj = {}
+    if (sort) {
+      const desc = sort.startsWith('-')
+      sortObj[desc ? sort.slice(1) : sort] = desc ? -1 : 1
     }
-
-    // Sort options
-    let sortOption = { createdAt: -1 }; // default: newest
-    if (sort === 'price_asc') sortOption = { price: 1 };
-    else if (sort === 'price_desc') sortOption = { price: -1 };
-    else if (sort === 'newest') sortOption = { createdAt: -1 };
-    else if (sort === 'popular') sortOption = { numReviews: -1, rating: -1 };
-
-    const pageNum = Math.max(1, parseInt(page));
-    const limitNum = Math.max(1, Math.min(50, parseInt(limit)));
-    const skip = (pageNum - 1) * limitNum;
-
-    const [products, count] = await Promise.all([
-      Product.find(filter).sort(sortOption).skip(skip).limit(limitNum),
-      Product.countDocuments(filter),
-    ]);
-
-    res.json({
-      success: true,
-      products,
-      page: pageNum,
-      pages: Math.ceil(count / limitNum),
-      total: count,
-    });
-  } catch (error) {
-    next(error);
+    const products = await Product.find(query).sort(sortObj)
+    res.json({ success: true, products, total: products.length })
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message })
   }
-});
+})
 
-// ─── GET /api/products/featured ─────────────────────────────────────────────
-router.get('/featured', async (req, res, next) => {
+// GET /api/products/featured
+router.get('/featured', async (req, res) => {
   try {
+    if (useMock()) {
+      const products = getMockDb().getDb().products.filter(p => p.isFeatured)
+      return res.json({ success: true, products })
+    }
+    const Product = require('../models/Product')
+    const products = await Product.find({ isFeatured: true }).limit(12)
+    res.json({ success: true, products })
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message })
+  }
+})
+
+// GET /api/products/search
+router.get('/search', async (req, res) => {
+  try {
+    const { q } = req.query
+    if (!q) return res.json({ success: true, products: [] })
+
+    if (useMock()) {
+      const query = q.toLowerCase()
+      const products = getMockDb().getDb().products.filter(p =>
+        p.name.toLowerCase().includes(query) || p.description.toLowerCase().includes(query) || p.brand?.toLowerCase().includes(query)
+      ).slice(0, 10)
+      return res.json({ success: true, products })
+    }
+    const Product = require('../models/Product')
     const products = await Product.find({
-      isFeatured: true,
-      isAvailable: true,
-    }).limit(8);
-
-    res.json({
-      success: true,
-      products,
-    });
-  } catch (error) {
-    next(error);
+      $or: [
+        { name: { $regex: q, $options: 'i' } },
+        { description: { $regex: q, $options: 'i' } },
+        { brand: { $regex: q, $options: 'i' } },
+      ]
+    }).limit(10)
+    res.json({ success: true, products })
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message })
   }
-});
+})
 
-// ─── GET /api/products/search?q=term ────────────────────────────────────────
-router.get('/search', async (req, res, next) => {
+// GET /api/products/:id
+router.get('/:id', async (req, res) => {
   try {
-    const { q } = req.query;
-
-    if (!q) {
-      return res.json({ success: true, products: [] });
+    if (useMock()) {
+      const product = getMockDb().getDb().products.find(p => p._id === req.params.id)
+      if (!product) return res.status(404).json({ success: false, message: 'Product not found' })
+      return res.json({ success: true, product })
     }
-
-    const products = await Product.find({
-      name: { $regex: q, $options: 'i' },
-      isAvailable: true,
-    }).limit(10);
-
-    res.json({
-      success: true,
-      products,
-    });
-  } catch (error) {
-    next(error);
+    const Product = require('../models/Product')
+    const product = await Product.findById(req.params.id)
+    if (!product) return res.status(404).json({ success: false, message: 'Product not found' })
+    res.json({ success: true, product })
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message })
   }
-});
+})
 
-// ─── GET /api/products/:id ──────────────────────────────────────────────────
-router.get('/:id', async (req, res, next) => {
-  try {
-    const product = await Product.findById(req.params.id);
-
-    if (!product) {
-      return res.status(404).json({
-        success: false,
-        message: 'Product not found',
-      });
-    }
-
-    // Find related products (same category, exclude current)
-    const relatedProducts = await Product.find({
-      category: product.category,
-      _id: { $ne: product._id },
-      isAvailable: true,
-    }).limit(4);
-
-    res.json({
-      success: true,
-      product,
-      relatedProducts,
-    });
-  } catch (error) {
-    next(error);
-  }
-});
-
-module.exports = router;
+module.exports = router

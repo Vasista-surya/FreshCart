@@ -1,24 +1,10 @@
-const mongoose = require('mongoose');
+const mongoose = require('mongoose')
 
 const wishlistSchema = new mongoose.Schema({
-  user: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    required: true,
-    unique: true,
-  },
-  products: [
-    {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Product',
-    },
-  ],
-  createdAt: {
-    type: Date,
-    default: Date.now,
-  },
-});
+  user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, unique: true },
+  items: [{
+    product: { type: mongoose.Schema.Types.ObjectId, ref: 'Product' },
+  }],
+}, { timestamps: true })
 
-const mongooseModel = mongoose.model('Wishlist', wishlistSchema);
-const { createMockableModel } = require('../config/mockDb');
-module.exports = createMockableModel('Wishlist', mongooseModel);
+module.exports = mongoose.model('Wishlist', wishlistSchema)

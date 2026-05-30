@@ -1,126 +1,86 @@
-const express = require('express');
-const Wishlist = require('../models/Wishlist');
-const Product = require('../models/Product');
-const { protect } = require('../middleware/auth');
+const router = require('express').Router()
+const { auth } = require('../middleware/auth')
 
-const router = express.Router();
+const useMock = () => process.env.USE_MOCK_DB === 'true'
+const getMockDb = () => require('../config/mockDb')
 
-// All wishlist routes are protected
-router.use(protect);
-
-// ─── GET /api/wishlist ──────────────────────────────────────────────────────
-router.get('/', async (req, res, next) => {
+// GET /api/wishlist
+router.get('/', auth, async (req, res) => {
   try {
-    let wishlist = await Wishlist.findOne({ user: req.user._id }).populate(
-      'products',
-      'name price mrp image category brand unit weight stock isAvailable'
-    );
-
-    if (!wishlist) {
-      wishlist = await Wishlist.create({ user: req.user._id, products: [] });
+    if (useMock()) {
+      const db = getMockDb().getDb()
+      const wl = db.wishlists.find(w => w.user === req.userId)
+      const items = (wl?.items || []).map(i => ({
+        product: db.products.find(p => p._id === i.productId) || {},
+        productId: i.productId,
+      }))
+      return res.json({ success: true, items })
     }
-
-    res.json({
-      success: true,
-      wishlist,
-    });
-  } catch (error) {
-    next(error);
+    const Wishlist = require('../models/Wishlist')
+    const wl = await Wishlist.findOne({ user: req.userId }).populate('items.product')
+    res.json({ success: true, items: wl?.items || [] })
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message })
   }
-});
+})
 
-// ─── POST /api/wishlist ─────────────────────────────────────────────────────
-// Add product to wishlist
-router.post('/', async (req, res, next) => {
+// POST /api/wishlist
+router.post('/', auth, async (req, res) => {
   try {
-    const { productId } = req.body;
+    const { productId } = req.body
 
-    if (!productId) {
-      return res.status(400).json({
-        success: false,
-        message: 'Please provide productId',
-      });
-    }
-
-    // Verify product exists
-    const product = await Product.findById(productId);
-    if (!product) {
-      return res.status(404).json({
-        success: false,
-        message: 'Product not found',
-      });
-    }
-
-    let wishlist = await Wishlist.findOne({ user: req.user._id });
-
-    if (!wishlist) {
-      wishlist = await Wishlist.create({
-        user: req.user._id,
-        products: [productId],
-      });
-    } else {
-      // Don't add duplicates
-      const alreadyExists = wishlist.products.some(
-        (id) => id.toString() === productId
-      );
-
-      if (!alreadyExists) {
-        wishlist.products.push(productId);
-        await wishlist.save();
+    if (useMock()) {
+      const db = getMockDb().getDb()
+      let wl = db.wishlists.find(w => w.user === req.userId)
+      if (!wl) { wl = { user: req.userId, items: [] }; db.wishlists.push(wl) }
+      if (!wl.items.find(i => i.productId === productId)) {
+        wl.items.push({ productId })
       }
+      const items = wl.items.map(i => ({
+        product: db.products.find(p => p._id === i.productId) || {},
+        productId: i.productId,
+      }))
+      return res.json({ success: true, items })
     }
 
-    // Return populated wishlist
-    wishlist = await Wishlist.findOne({ user: req.user._id }).populate(
-      'products',
-      'name price mrp image category brand unit weight stock isAvailable'
-    );
-
-    res.json({
-      success: true,
-      wishlist,
-    });
-  } catch (error) {
-    next(error);
+    const Wishlist = require('../models/Wishlist')
+    let wl = await Wishlist.findOne({ user: req.userId })
+    if (!wl) wl = new Wishlist({ user: req.userId, items: [] })
+    if (!wl.items.find(i => i.product.toString() === productId)) {
+      wl.items.push({ product: productId })
+    }
+    await wl.save()
+    await wl.populate('items.product')
+    res.json({ success: true, items: wl.items })
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message })
   }
-});
+})
 
-// ─── DELETE /api/wishlist/:productId ────────────────────────────────────────
-// Remove product from wishlist
-router.delete('/:productId', async (req, res, next) => {
+// DELETE /api/wishlist/:productId
+router.delete('/:productId', auth, async (req, res) => {
   try {
-    const { productId } = req.params;
-
-    const wishlist = await Wishlist.findOne({ user: req.user._id });
-
-    if (!wishlist) {
-      return res.status(404).json({
-        success: false,
-        message: 'Wishlist not found',
-      });
+    if (useMock()) {
+      const db = getMockDb().getDb()
+      const wl = db.wishlists.find(w => w.user === req.userId)
+      if (wl) wl.items = wl.items.filter(i => i.productId !== req.params.productId)
+      const items = (wl?.items || []).map(i => ({
+        product: db.products.find(p => p._id === i.productId) || {},
+        productId: i.productId,
+      }))
+      return res.json({ success: true, items })
     }
-
-    wishlist.products = wishlist.products.filter(
-      (id) => id.toString() !== productId
-    );
-
-    await wishlist.save();
-
-    // Return populated wishlist
-    const updatedWishlist = await Wishlist.findOne({
-      user: req.user._id,
-    }).populate(
-      'products',
-      'name price mrp image category brand unit weight stock isAvailable'
-    );
-
-    res.json({
-      success: true,
-      wishlist: updatedWishlist,
-    });
-  } catch (error) {
-    next(error);
+    const Wishlist = require('../models/Wishlist')
+    const wl = await Wishlist.findOne({ user: req.userId })
+    if (wl) {
+      wl.items = wl.items.filter(i => i.product.toString() !== req.params.productId)
+      await wl.save()
+      await wl.populate('items.product')
+    }
+    res.json({ success: true, items: wl?.items || [] })
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message })
   }
-});
+})
 
-module.exports = router;
+module.exports = router

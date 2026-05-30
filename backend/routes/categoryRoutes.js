@@ -1,63 +1,20 @@
-const express = require('express');
-const Category = require('../models/Category');
-const Product = require('../models/Product');
+const router = require('express').Router()
 
-const router = express.Router();
+const useMock = () => process.env.USE_MOCK_DB === 'true'
+const getMockDb = () => require('../config/mockDb')
 
-// ─── GET /api/categories ────────────────────────────────────────────────────
-// Get all active categories sorted by order
-router.get('/', async (req, res, next) => {
+// GET /api/categories
+router.get('/', async (req, res) => {
   try {
-    const categories = await Category.find({ isActive: true }).sort({ order: 1 });
-
-    res.json({
-      success: true,
-      categories,
-    });
-  } catch (error) {
-    next(error);
-  }
-});
-
-// ─── GET /api/categories/:slug ──────────────────────────────────────────────
-// Get category by slug and its products with pagination
-router.get('/:slug', async (req, res, next) => {
-  try {
-    const category = await Category.findOne({
-      slug: req.params.slug,
-      isActive: true,
-    });
-
-    if (!category) {
-      return res.status(404).json({
-        success: false,
-        message: 'Category not found',
-      });
+    if (useMock()) {
+      return res.json({ success: true, categories: getMockDb().getDb().categories })
     }
-
-    const page = Math.max(1, parseInt(req.query.page) || 1);
-    const limit = Math.max(1, Math.min(50, parseInt(req.query.limit) || 12));
-    const skip = (page - 1) * limit;
-
-    const [products, total] = await Promise.all([
-      Product.find({ category: category.name, isAvailable: true })
-        .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(limit),
-      Product.countDocuments({ category: category.name, isAvailable: true }),
-    ]);
-
-    res.json({
-      success: true,
-      category,
-      products,
-      page,
-      pages: Math.ceil(total / limit),
-      total,
-    });
-  } catch (error) {
-    next(error);
+    const Category = require('../models/Category')
+    const categories = await Category.find({ isActive: true }).sort('order')
+    res.json({ success: true, categories })
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message })
   }
-});
+})
 
-module.exports = router;
+module.exports = router

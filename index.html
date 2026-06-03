@@ -1,17 +1,178 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>FreshCart — Fresh Grocery & Daily Essentials Delivered</title>
-    <meta name="description" content="Order premium quality groceries, farm-fresh fruits, vegetables, dairy, snacks, beverages, and household essentials online. Fast home delivery with FreshCart!" />
-    <meta name="theme-color" content="#059669" />
-    <script>window.location.href = './dist/index.html';</script>
-  </head>
-  <body>
-    <noscript>
-      <meta http-equiv="refresh" content="0;url=./dist/index.html" />
-      <p>Redirecting to <a href="./dist/index.html">FreshCart</a>...</p>
-    </noscript>
-  </body>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FreshCart — Fresh Grocery & Daily Essentials Delivered</title>
+  <meta name="description" content="Order premium quality groceries, farm-fresh fruits, vegetables, dairy, snacks, beverages, and household essentials online. Fast home delivery with FreshCart!">
+  <meta name="theme-color" content="#059669">
+  <link rel="icon" href="assets/icons/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/pages.css">
+  <link rel="stylesheet" href="css/animations.css">
+</head>
+<body>
+  <!-- Navbar -->
+  <div id="navbar"></div>
+
+  <!-- Cart Sidebar -->
+  <div class="cart-overlay" id="cart-overlay"></div>
+  <div class="cart-sidebar" id="cart-sidebar">
+    <div class="cart-sidebar-header">
+      <div class="title">
+        <span style="color:var(--brand-600)">&nbsp;</span>
+        <h2>Your Cart</h2>
+        <span id="cart-sidebar-badge"></span>
+      </div>
+      <button class="btn-icon" id="cart-close-btn" onclick="closeCartSidebar()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="width:1.25rem;height:1.25rem"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="cart-sidebar-body" id="cart-sidebar-body"></div>
+    <div class="cart-sidebar-footer" id="cart-sidebar-footer" style="display:none"></div>
+  </div>
+
+  <!-- Toast Container -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <main>
+    <!-- Hero Section -->
+    <section class="hero" id="hero">
+      <div class="hero-bg">
+        <div class="blob blob-1"></div>
+        <div class="blob blob-2"></div>
+        <div class="blob blob-3"></div>
+      </div>
+      <div class="hero-inner">
+        <div class="hero-grid">
+          <div>
+            <div class="hero-pill animate-slide-up">
+              <span class="dot"></span>
+              Free delivery on orders above ₹499
+            </div>
+            <h1 class="hero-title animate-slide-up" style="animation-delay:0.1s">
+              Fresh Groceries<br>
+              <span class="accent">Delivered Fast</span>
+            </h1>
+            <p class="hero-desc animate-slide-up" style="animation-delay:0.2s">
+              Get farm-fresh fruits, vegetables, dairy, and all your daily essentials delivered to your doorstep in minutes.
+            </p>
+            <div class="hero-buttons animate-slide-up" style="animation-delay:0.3s">
+              <a href="products.html" class="hero-btn-primary" id="hero-shop-btn">
+                Shop Now <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:1rem;height:1rem"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+              </a>
+              <a href="categories.html" class="hero-btn-secondary">Browse Categories</a>
+            </div>
+          </div>
+          <div class="hero-visual">
+            <div class="hero-visual-box">🛒</div>
+            <div class="hero-floating-item" style="top:1rem;left:1rem;animation:float 3s ease-in-out infinite">🍎</div>
+            <div class="hero-floating-item" style="top:2rem;right:2rem;animation:float 4s ease-in-out 0.5s infinite">🥬</div>
+            <div class="hero-floating-item" style="bottom:2rem;left:2rem;animation:float 5s ease-in-out 1s infinite">🥛</div>
+            <div class="hero-floating-item" style="bottom:1rem;right:1rem;animation:float 4s ease-in-out 1.5s infinite">🍪</div>
+          </div>
+        </div>
+        <div class="hero-features animate-slide-up" style="animation-delay:0.5s">
+          <div class="hero-feature">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:2rem;height:2rem;color:var(--accent-400);flex-shrink:0"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+            <div><h3>Fast Delivery</h3><p>Delivered in 30 minutes</p></div>
+          </div>
+          <div class="hero-feature">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:2rem;height:2rem;color:var(--accent-400);flex-shrink:0"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            <div><h3>Open 24/7</h3><p>Order anytime, anywhere</p></div>
+          </div>
+          <div class="hero-feature">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:2rem;height:2rem;color:var(--accent-400);flex-shrink:0"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            <div><h3>Quality Assured</h3><p>100% genuine products</p></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Category Showcase -->
+    <section class="category-showcase" id="category-showcase">
+      <h2 class="reveal">Shop by Category</h2>
+      <div class="category-grid-home stagger" id="home-categories"></div>
+    </section>
+
+    <!-- Offer Banners -->
+    <section class="offer-section">
+      <div class="offer-grid stagger">
+        <a href="products.html?category=Fruits" class="offer-card offer-orange reveal">
+          <div class="offer-card-inner">
+            <div>
+              <h3>Fresh Fruits Festival</h3>
+              <p>Up to 30% off on seasonal fruits</p>
+              <span class="link">Shop Now →</span>
+            </div>
+            <span class="emoji">🍎</span>
+          </div>
+        </a>
+        <a href="products.html?category=Dairy" class="offer-card offer-blue reveal">
+          <div class="offer-card-inner">
+            <div>
+              <h3>Dairy Deals</h3>
+              <p>Buy 2 Get 1 Free on dairy products</p>
+              <span class="link">Shop Now →</span>
+            </div>
+            <span class="emoji">🥛</span>
+          </div>
+        </a>
+        <a href="products.html?category=Snacks" class="offer-card offer-amber reveal">
+          <div class="offer-card-inner">
+            <div>
+              <h3>Snack Attack</h3>
+              <p>Flat 20% off on all snacks & biscuits</p>
+              <span class="link">Shop Now →</span>
+            </div>
+            <span class="emoji">🍿</span>
+          </div>
+        </a>
+      </div>
+    </section>
+
+    <!-- Featured Products -->
+    <section class="featured-section" id="featured-products">
+      <div class="featured-header">
+        <div>
+          <h2 class="reveal">Featured Products</h2>
+          <p class="reveal" style="transition-delay:0.1s">Handpicked quality items just for you</p>
+        </div>
+        <a href="products.html" class="view-all reveal">View All <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:1rem;height:1rem"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></a>
+      </div>
+      <div class="product-grid cols-4 stagger" id="home-featured"></div>
+      <div class="view-all-mobile">
+        <a href="products.html" class="btn-secondary" style="font-size:0.875rem">View All Products</a>
+      </div>
+    </section>
+  </main>
+
+  <!-- Footer -->
+  <div id="footer"></div>
+
+  <script src="js/main.js"></script>
+  <script src="js/animations.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      // Render category showcase
+      const catGrid = document.getElementById('home-categories');
+      if (catGrid) {
+        catGrid.innerHTML = CATEGORIES.map(cat => `
+          <a href="products.html?category=${encodeURIComponent(cat.name)}" class="category-card-home reveal-scale">
+            <div class="icon-box"><span>${cat.icon}</span></div>
+            <h3 class="line-clamp-2">${cat.name}</h3>
+            ${cat.productCount > 0 ? `<p class="count">${cat.productCount} items</p>` : ''}
+          </a>
+        `).join('');
+      }
+
+      // Render featured products
+      const featGrid = document.getElementById('home-featured');
+      if (featGrid) {
+        const featured = PRODUCTS.filter(p => p.isFeatured).slice(0, 8);
+        featGrid.innerHTML = featured.map(p => renderProductCard(p)).join('');
+      }
+
+      setTimeout(initRevealAnimations, 100);
+    });
+  </script>
+</body>
 </html>

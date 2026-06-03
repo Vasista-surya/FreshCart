@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Products — FreshCart</title>
+  <meta name="description" content="Browse our complete collection of fresh groceries, fruits, vegetables, dairy, snacks, and household essentials at FreshCart.">
+  <meta name="theme-color" content="#059669">
+  <link rel="icon" href="assets/icons/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/pages.css">
+  <link rel="stylesheet" href="css/animations.css">
+</head>
+<body>
+  <div id="navbar"></div>
+  <div class="cart-overlay" id="cart-overlay"></div>
+  <div class="cart-sidebar" id="cart-sidebar">
+    <div class="cart-sidebar-header"><div class="title"><h2>Your Cart</h2><span id="cart-sidebar-badge"></span></div><button class="btn-icon" id="cart-close-btn" onclick="closeCartSidebar()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="width:1.25rem;height:1.25rem"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>
+    <div class="cart-sidebar-body" id="cart-sidebar-body"></div>
+    <div class="cart-sidebar-footer" id="cart-sidebar-footer" style="display:none"></div>
+  </div>
+  <div class="toast-container" id="toast-container"></div>
+
+  <main>
+    <div class="products-page">
+      <div class="page-header animate-slide-up" id="products-header"></div>
+      <div class="products-layout">
+        <aside class="products-sidebar" id="products-sidebar"></aside>
+        <div class="products-main">
+          <div class="product-grid cols-4" id="products-grid"></div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <div id="footer"></div>
+  <script src="js/main.js"></script>
+  <script src="js/animations.js"></script>
+  <script src="js/products.js"></script>
+</body>
+</html>

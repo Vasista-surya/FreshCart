@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Product Details — FreshCart</title>
+  <meta name="description" content="View product details, pricing, reviews, and add to cart at FreshCart.">
+  <meta name="theme-color" content="#059669">
+  <link rel="icon" href="assets/icons/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/pages.css">
+  <link rel="stylesheet" href="css/animations.css">
+</head>
+<body>
+  <div id="navbar"></div>
+  <div class="cart-overlay" id="cart-overlay"></div>
+  <div class="cart-sidebar" id="cart-sidebar">
+    <div class="cart-sidebar-header"><div class="title"><h2>Your Cart</h2><span id="cart-sidebar-badge"></span></div><button class="btn-icon" id="cart-close-btn" onclick="closeCartSidebar()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="width:1.25rem;height:1.25rem"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>
+    <div class="cart-sidebar-body" id="cart-sidebar-body"></div>
+    <div class="cart-sidebar-footer" id="cart-sidebar-footer" style="display:none"></div>
+  </div>
+  <div class="toast-container" id="toast-container"></div>
+
+  <main>
+    <div class="product-detail" id="product-detail-content"></div>
+  </main>
+
+  <div id="footer"></div>
+  <script src="js/main.js"></script>
+  <script src="js/animations.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const container = document.getElementById('product-detail-content');
+      const params = new URLSearchParams(window.location.search);
+      const productId = params.get('id');
+      const product = PRODUCTS.find(p => p._id === productId);
+
+      if (!product) {
+        container.innerHTML = `
+          <div style="text-align:center;padding:5rem 1rem">
+            <div style="font-size:3.5rem;margin-bottom:1rem">😕</div>
+            <h2 style="font-family:var(--font-display);font-weight:700;font-size:1.5rem;margin-bottom:0.5rem">Product not found</h2>
+            <a href="products.html" class="btn-primary" style="margin-top:1rem">Browse Products</a>
+          </div>
+        `;
+        return;
+      }
+
+      document.title = `${product.name} — FreshCart`;
+      const discount = product.mrp > product.price ? Math.round(((product.mrp - product.price) / product.mrp) * 100) : 0;
+      let quantity = 1;
+      const user = getCurrentUser();
+      const wishlisted = isInWishlist(product._id);
+
+      function renderDetail() {
+        container.innerHTML = `
+          <a href="products.html" class="back-link">
+            ${ICONS.arrowLeft} Back to Products
+          </a>
+          <div class="detail-grid">
+            <div class="detail-image reveal-left">
+              <img src="${product.image}" alt="${product.name}">
+              ${discount > 0 ? `<span class="badge badge-discount" style="position:absolute;top:1rem;left:1rem">${discount}% OFF</span>` : ''}
+            </div>
+            <div class="detail-info reveal-right">
+              <p class="category-label">${product.category}</p>
+              <h1>${product.name}</h1>
+              ${product.rating ? `
+                <div class="star-rating">
+                  ${renderStars(product.rating)}
+                  <span class="text">${product.rating} (${product.numReviews} reviews)</span>
+                </div>
+              ` : ''}
+              <div class="detail-price">
+                <span class="current">₹${product.price}</span>
+                ${product.mrp > product.price ? `<span class="original">₹${product.mrp}</span>` : ''}
+              </div>
+              ${product.weight ? `<p class="detail-weight">Size: ${product.weight}</p>` : ''}
+              <p class="detail-description">${product.description}</p>
+              <div class="stock-badge">
+                ${product.stock > 0
+                  ? `<span class="badge stock-in">In Stock (${product.stock} available)</span>`
+                  : '<span class="badge stock-out">Out of Stock</span>'
+                }
+              </div>
+              ${product.stock > 0 ? `
+                <div class="add-to-cart-row">
+                  <div class="qty-control">
+                    <button id="qty-dec">${ICONS.minus}</button>
+                    <span class="qty" id="detail-qty">${quantity}</span>
+                    <button id="qty-inc">${ICONS.plus}</button>
+                  </div>
+                  <button class="btn-primary" id="product-add-to-cart" style="flex:1">
+                    Add to Cart — ₹${product.price * quantity}
+                  </button>
+                </div>
+              ` : ''}
+              ${user ? `
+                <button class="btn-secondary" style="width:100%;gap:0.5rem" id="product-wishlist-btn">
+                  ${wishlisted
+                    ? `<span style="color:var(--red-500)">${ICONS.heartFill}</span> Remove from Wishlist`
+                    : `${ICONS.heart} Add to Wishlist`
+                  }
+                </button>
+              ` : ''}
+              <div class="detail-meta">
+                ${product.brand ? `
+                  <div class="detail-meta-row">
+                    <span class="label">Brand:</span>
+                    <span class="value">${product.brand}</span>
+                  </div>
+                ` : ''}
+                <div class="detail-meta-row">
+                  <span class="label">Category:</span>
+                  <a href="products.html?category=${encodeURIComponent(product.category)}">${product.category}</a>
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+
+        // Quantity controls
+        document.getElementById('qty-dec')?.addEventListener('click', () => {
+          if (quantity > 1) { quantity--; renderDetail(); }
+        });
+        document.getElementById('qty-inc')?.addEventListener('click', () => {
+          if (quantity < product.stock) { quantity++; renderDetail(); }
+        });
+
+        // Add to cart
+        document.getElementById('product-add-to-cart')?.addEventListener('click', () => {
+          addToCart(product, quantity);
+        });
+
+        // Wishlist
+        document.getElementById('product-wishlist-btn')?.addEventListener('click', () => {
+          toggleWishlist(product._id);
+          renderDetail();
+        });
+
+        setTimeout(initRevealAnimations, 50);
+      }
+
+      renderDetail();
+    });
+  </script>
+</body>
+</html>
